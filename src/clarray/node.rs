@@ -5,9 +5,13 @@ use std::{
 
 use num_traits::Float;
 use ocl::{Event, OclPrm};
+use uuid::Uuid;
 
 use crate::clarray::{
-  op::{EwAddOp, EwDivOp, EwMulOp, EwSubOp, Input, NodeOp},
+  op::{
+    AbsOp, EwAddOp, EwDivOp, EwMulOp, EwSubOp, ExpOp, Input, LnOp, LogOp, NegOp, NodeOp, PowOp,
+    SqrtOp,
+  },
   tape::Tape,
   tensor::{Tensor, TensorType},
 };
@@ -17,11 +21,10 @@ pub struct Node<T>
 where
   T: TensorType,
 {
-  pub id: usize,
-  pub name: Option<String>,
-  parents: RefCell<Vec<NodeRef<T>>>,
+  pub id: Uuid,
+  pub parents: RefCell<Vec<NodeRef<T>>>,
   children: RefCell<Vec<NodeWeak<T>>>,
-  node_type: Rc<dyn NodeOp<T>>,
+  pub node_type: Rc<dyn NodeOp<T>>,
   node_event: Option<Event>,
   pub tape: Rc<RefCell<Tape<T>>>,
   pub output: Tensor<T>,
@@ -35,6 +38,10 @@ impl<T> Node<T>
 where
   T: TensorType,
 {
+  pub fn name(&self) -> String {
+    self.node_type.name().to_owned()
+  }
+
   pub fn add_children(&mut self, child: &NodeRef<T>) {
     self.children.borrow_mut().push(Rc::downgrade(child));
   }
@@ -48,8 +55,7 @@ where
       .unwrap();
 
     let res = Self {
-      id: 0,
-      name: Some(node_type.name().to_string()),
+      id: Uuid::new_v4(),
       parents: RefCell::new(vec![Rc::new(RefCell::new(parent.clone()))]),
       children: RefCell::new(vec![]),
       node_type: node_type.clone(),
@@ -61,7 +67,7 @@ where
     parent
       .tape
       .borrow_mut()
-      .push_node(&Rc::downgrade(&Rc::new(RefCell::new(res.clone()))));
+      .push_node(&Rc::new(RefCell::new(res.clone())));
     res
   }
 
@@ -80,9 +86,8 @@ where
       )
       .unwrap();
 
-    Self {
-      id: 0,
-      name: Some("test".to_string()),
+    let res = Self {
+      id: Uuid::new_v4(),
       parents: RefCell::new(vec![
         Rc::new(RefCell::new(parent1.clone())),
         Rc::new(RefCell::new(parent2.clone())),
@@ -93,23 +98,20 @@ where
       tape: parent1.tape.clone(),
       output: tensor.clone(),
       grad: Tensor::zeros(tensor.shape.clone()),
-    }
+    };
+    parent1
+      .tape
+      .borrow_mut()
+      .push_node(&Rc::new(RefCell::new(res.clone())));
+    res
   }
 
-  pub fn push_input(
-    id: usize,
-    name: String,
-    output: Tensor<T>,
-    tape: Rc<RefCell<Tape<T>>>,
-  ) -> Self {
+  pub fn push_input(name: String, output: Tensor<T>, tape: Rc<RefCell<Tape<T>>>) -> Self {
     let res = Self {
-      id,
-      name: Some(name),
+      id: Uuid::new_v4(),
       parents: RefCell::new(vec![]),
       children: RefCell::new(vec![]),
-      node_type: Rc::new(Input {
-        name: "input".to_string(),
-      }),
+      node_type: Rc::new(Input { name }),
       node_event: None,
       tape,
       output: output.clone(),
@@ -118,7 +120,7 @@ where
     res
       .tape
       .borrow_mut()
-      .push_node(&Rc::downgrade(&Rc::new(RefCell::new(res.clone()))));
+      .push_node(&Rc::new(RefCell::new(res.clone())));
     res
   }
 
@@ -130,17 +132,17 @@ where
 
   pub fn zeros(shape: Vec<usize>, tape: Rc<RefCell<Tape<T>>>) -> Self {
     let input_tensor = Tensor::<T>::zeros(shape);
-    Self::push_input(0, "zeros".to_string(), input_tensor, tape)
+    Self::push_input("zeros".to_string(), input_tensor, tape)
   }
 
   pub fn from_array(shape: Vec<usize>, array: Vec<T>, tape: Rc<RefCell<Tape<T>>>) -> Self {
     let input_tensor = Tensor::<T>::from_array(shape, array);
-    Self::push_input(0, "from_array".to_string(), input_tensor, tape)
+    Self::push_input("from_array".to_string(), input_tensor, tape)
   }
 
   pub fn scalar(value: T, tape: Rc<RefCell<Tape<T>>>) -> Self {
     let input_tensor = Tensor::<T>::scalar(value);
-    Self::push_input(0, "scalar".to_string(), input_tensor, tape)
+    Self::push_input("scalar".to_string(), input_tensor, tape)
   }
 }
 
@@ -198,5 +200,66 @@ where
       name: "div".to_string(),
     });
     Node::push_binary_op(&self, &other, node_type)
+  }
+}
+
+impl<T> std::ops::Neg for &Node<T>
+where
+  T: TensorType + Float,
+{
+  type Output = Node<T>;
+
+  fn neg(self) -> Self::Output {
+    let node_type = Rc::new(NegOp {
+      name: "neg".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+}
+
+impl<T> Node<T>
+where
+  T: TensorType + Float,
+{
+  pub fn abs(&self) -> Self {
+    let node_type = Rc::new(AbsOp {
+      name: "abs".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+
+  pub fn pow(&self, exponent: &Node<T>) -> Self {
+    let node_type = Rc::new(PowOp {
+      name: "pow".to_string(),
+    });
+    Node::push_binary_op(self, exponent, node_type)
+  }
+
+  pub fn sqrt(&self) -> Self {
+    let node_type = Rc::new(SqrtOp {
+      name: "sqrt".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+
+  pub fn exp(&self) -> Self {
+    let node_type = Rc::new(ExpOp {
+      name: "exp".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+
+  pub fn ln(&self) -> Self {
+    let node_type = Rc::new(LnOp {
+      name: "ln".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+
+  pub fn log(&self, base: &Node<T>) -> Self {
+    let node_type = Rc::new(LogOp {
+      name: "log".to_string(),
+    });
+    Node::push_binary_op(self, base, node_type)
   }
 }

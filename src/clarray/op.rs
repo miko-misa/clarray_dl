@@ -305,7 +305,7 @@ where
   }
 }
 
-struct AbsOp {
+pub struct AbsOp {
   pub(crate) name: String,
 }
 
@@ -332,6 +332,56 @@ where
     let kernel = ocl::Kernel::builder()
       .program(input.env.get_program::<T>()?.as_ref())
       .name("abs_fwd")
+      .queue(input.env.proque().queue().clone())
+      .global_work_size(ws_size)
+      .arg(&input.buffer)
+      .arg(array_2_buffer(input.strides.clone()))
+      .arg(&output.buffer)
+      .arg(array_2_buffer(output.strides.clone()))
+      .arg(ndim as u32)
+      .build()?;
+
+    let event = enq_kernel(&kernel, events)?;
+    Ok((output, Some(event)))
+  }
+
+  fn backward(
+    &self,
+    childrens: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Vec<&Tensor<T>>, Event), Error> {
+    // Implement the backward operation logic here
+    unimplemented!()
+  }
+}
+
+pub struct NegOp {
+  pub(crate) name: String,
+}
+
+impl<T> NodeOp<T> for NegOp
+where
+  T: TensorType,
+{
+  fn name(&self) -> &str {
+    &self.name
+  }
+
+  fn forward(
+    &self,
+    parents: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Tensor<T>, Option<Event>), Error> {
+    if parents.len() != 1 {
+      return Err(Error::from("NegOp requires exactly one parent tensor"));
+    }
+    let input = parents[0];
+    let ws_size = input.len();
+    let ndim = input.dim();
+    let output = Tensor::zeros(input.shape.clone());
+    let kernel = ocl::Kernel::builder()
+      .program(input.env.get_program::<T>()?.as_ref())
+      .name("neg_fwd")
       .queue(input.env.proque().queue().clone())
       .global_work_size(ws_size)
       .arg(&input.buffer)
@@ -410,7 +460,7 @@ where
   }
 }
 
-struct SqrtOp {
+pub struct SqrtOp {
   pub(crate) name: String,
 }
 
@@ -460,7 +510,7 @@ where
   }
 }
 
-struct ExpOp {
+pub struct ExpOp {
   pub(crate) name: String,
 }
 
