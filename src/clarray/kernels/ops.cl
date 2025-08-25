@@ -217,3 +217,74 @@ __kernel void log_fwd(
     }
     output[i] = log(input[input_index]) / log(base[0]);
 }
+
+__kernel void sin_fwd(
+    __global const scalar_t* input,
+    __constant const uint* input_strides,
+    __global scalar_t* output,
+    __constant const uint* base_strides,
+    const uint ndim
+) {
+    uint i = get_global_id(0);
+    uint index[MAX_NDIM];
+    ws_to_index(i, base_strides, ndim, index);
+    uint input_index = 0;
+    for (uint d = 0; d < ndim; d++) {
+        input_index += index[d] * input_strides[d];
+    }
+    output[i] = sin(input[input_index]);
+}
+
+__kernel void cos_fwd(
+    __global const scalar_t* input,
+    __constant const uint* input_strides,
+    __global scalar_t* output,
+    __constant const uint* base_strides,
+    const uint ndim
+) {
+    uint i = get_global_id(0);
+    uint index[MAX_NDIM];
+    ws_to_index(i, base_strides, ndim, index);
+    uint input_index = 0;
+    for (uint d = 0; d < ndim; d++) {
+        input_index += index[d] * input_strides[d];
+    }
+    output[i] = cos(input[input_index]);
+}
+
+__kernel void tan_fwd(
+    __global const scalar_t* input,
+    __constant const uint* input_strides,
+    __global scalar_t* output,
+    __constant const uint* base_strides,
+    const uint ndim
+) {
+    uint i = get_global_id(0);
+    uint index[MAX_NDIM];
+    ws_to_index(i, base_strides, ndim, index);
+    uint input_index = 0;
+    for (uint d = 0; d < ndim; d++) {
+        input_index += index[d] * input_strides[d];
+    }
+    output[i] = tan(input[input_index]);
+}
+
+__kernel void dot_fwd(
+    __global const scalar_t* lhs,
+    __constant const uint* lhs_strides,
+    __global const scalar_t* rhs,
+    __constant const uint* rhs_strides,
+    __global scalar_t* output,
+    __constant const uint* base_strides
+) {
+    uint i = get_global_id(0);
+    uint j = get_global_id(1);
+
+    scalar_t sum = 0.0;
+    for (uint k = 0; k < lhs_strides[0]; k++) {
+        uint lhs_index = i * lhs_strides[1] + k * lhs_strides[0];
+        uint rhs_index = k * rhs_strides[1] + j * rhs_strides[0];
+        sum += lhs[lhs_index] * rhs[rhs_index];
+    }
+    output[i * base_strides[1] + j * base_strides[0]] = sum;
+}

@@ -33,6 +33,10 @@ where
   pub fn push_node(&mut self, node: &NodeRef<T>) {
     self.nodes.borrow_mut().push(node.clone());
   }
+
+  pub fn reset(&mut self) {
+    self.nodes.borrow_mut().clear();
+  }
 }
 
 #[derive(Clone, Copy)]

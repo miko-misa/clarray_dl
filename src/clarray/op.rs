@@ -1,5 +1,7 @@
 use core::str;
 
+use clblast_binding::clblast_sys::{CLBlastLayout, CLBlastTranspose};
+use clblast_binding::sgemm;
 use num_traits::Float;
 use ocl::{Buffer, Error, Event, EventList, OclPrm};
 
@@ -652,6 +654,298 @@ where
       .build()?;
     let event = enq_kernel(&kernel, events)?;
     Ok((output, Some(event)))
+  }
+
+  fn backward(
+    &self,
+    childrens: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Vec<&Tensor<T>>, Event), Error> {
+    // Implement the backward operation logic here
+    unimplemented!()
+  }
+}
+
+pub struct SinOp {
+  pub(crate) name: String,
+}
+
+impl<T> NodeOp<T> for SinOp
+where
+  T: TensorType,
+{
+  fn name(&self) -> &str {
+    &self.name
+  }
+
+  fn forward(
+    &self,
+    parents: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Tensor<T>, Option<Event>), Error> {
+    if parents.len() != 1 {
+      return Err(Error::from("SinOp requires exactly one parent tensor"));
+    }
+    let input = parents[0];
+    let ws_size = input.len();
+    let ndim = input.dim();
+    let output = Tensor::zeros(input.shape.clone());
+    let kernel = ocl::Kernel::builder()
+      .program(input.env.get_program::<T>()?.as_ref())
+      .name("sin_fwd")
+      .queue(input.env.proque().queue().clone())
+      .global_work_size(ws_size)
+      .arg(&input.buffer)
+      .arg(array_2_buffer(input.strides.clone()))
+      .arg(&output.buffer)
+      .arg(array_2_buffer(output.strides.clone()))
+      .arg(ndim as u32)
+      .build()?;
+
+    let event = enq_kernel(&kernel, events)?;
+    Ok((output, Some(event)))
+  }
+
+  fn backward(
+    &self,
+    childrens: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Vec<&Tensor<T>>, Event), Error> {
+    // Implement the backward operation logic here
+    unimplemented!()
+  }
+}
+
+pub struct CosOp {
+  pub(crate) name: String,
+}
+
+impl<T> NodeOp<T> for CosOp
+where
+  T: TensorType,
+{
+  fn name(&self) -> &str {
+    &self.name
+  }
+
+  fn forward(
+    &self,
+    parents: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Tensor<T>, Option<Event>), Error> {
+    if parents.len() != 1 {
+      return Err(Error::from("CosOp requires exactly one parent tensor"));
+    }
+    let input = parents[0];
+    let ws_size = input.len();
+    let ndim = input.dim();
+    let output = Tensor::zeros(input.shape.clone());
+    let kernel = ocl::Kernel::builder()
+      .program(input.env.get_program::<T>()?.as_ref())
+      .name("cos_fwd")
+      .queue(input.env.proque().queue().clone())
+      .global_work_size(ws_size)
+      .arg(&input.buffer)
+      .arg(array_2_buffer(input.strides.clone()))
+      .arg(&output.buffer)
+      .arg(array_2_buffer(output.strides.clone()))
+      .arg(ndim as u32)
+      .build()?;
+
+    let event = enq_kernel(&kernel, events)?;
+    Ok((output, Some(event)))
+  }
+
+  fn backward(
+    &self,
+    childrens: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Vec<&Tensor<T>>, Event), Error> {
+    // Implement the backward operation logic here
+    unimplemented!()
+  }
+}
+
+pub struct TanOp {
+  pub(crate) name: String,
+}
+
+impl<T> NodeOp<T> for TanOp
+where
+  T: TensorType,
+{
+  fn name(&self) -> &str {
+    &self.name
+  }
+
+  fn forward(
+    &self,
+    parents: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Tensor<T>, Option<Event>), Error> {
+    if parents.len() != 1 {
+      return Err(Error::from("TanOp requires exactly one parent tensor"));
+    }
+    let input = parents[0];
+    let ws_size = input.len();
+    let ndim = input.dim();
+    let output = Tensor::zeros(input.shape.clone());
+    let kernel = ocl::Kernel::builder()
+      .program(input.env.get_program::<T>()?.as_ref())
+      .name("tan_fwd")
+      .queue(input.env.proque().queue().clone())
+      .global_work_size(ws_size)
+      .arg(&input.buffer)
+      .arg(array_2_buffer(input.strides.clone()))
+      .arg(&output.buffer)
+      .arg(array_2_buffer(output.strides.clone()))
+      .arg(ndim as u32)
+      .build()?;
+
+    let event = enq_kernel(&kernel, events)?;
+    Ok((output, Some(event)))
+  }
+
+  fn backward(
+    &self,
+    childrens: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Vec<&Tensor<T>>, Event), Error> {
+    // Implement the backward operation logic here
+    unimplemented!()
+  }
+}
+
+pub struct DotBaseOp {
+  pub(crate) name: String,
+}
+
+impl<T> NodeOp<T> for DotBaseOp
+where
+  T: TensorType,
+{
+  fn name(&self) -> &str {
+    &self.name
+  }
+
+  fn forward(
+    &self,
+    parents: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Tensor<T>, Option<Event>), Error> {
+    if parents.len() != 2 {
+      return Err(Error::from("DotBaseOp requires exactly two parent tensors"));
+    }
+    let lhs = parents[0];
+    let rhs = parents[1];
+    if lhs.shape.len() != 2 || rhs.shape.len() != 2 {
+      return Err(Error::from("DotBaseOp requires both tensors to be 2D"));
+    }
+    if lhs.shape[1] != rhs.shape[0] {
+      return Err(Error::from("Inner dimensions must match for dot product"));
+    }
+    let output_shape = vec![lhs.shape[0], rhs.shape[1]];
+    let output = Tensor::zeros(output_shape.clone());
+    let kernel = ocl::Kernel::builder()
+      .program(lhs.env.get_program::<T>()?.as_ref())
+      .name("dot_fwd")
+      .queue(lhs.env.proque().queue().clone())
+      .global_work_size((output_shape[0], output_shape[1]))
+      .arg(&lhs.buffer)
+      .arg(array_2_buffer(lhs.strides.clone()))
+      .arg(&rhs.buffer)
+      .arg(array_2_buffer(rhs.strides.clone()))
+      .arg(&output.buffer)
+      .arg(array_2_buffer(output.strides.clone()))
+      .build()?;
+
+    let event = enq_kernel(&kernel, events)?;
+    Ok((output, Some(event)))
+  }
+
+  fn backward(
+    &self,
+    childrens: Vec<&Tensor<T>>,
+    events: Vec<&Event>,
+  ) -> Result<(Vec<&Tensor<T>>, Event), Error> {
+    // Implement the backward operation logic here
+    unimplemented!()
+  }
+}
+
+pub struct DotOp {
+  pub(crate) name: String,
+}
+
+impl<T> NodeOp<T> for DotOp
+where
+  T: TensorType,
+{
+  fn name(&self) -> &str {
+    &self.name
+  }
+
+  // Row-major, NoTrans × NoTrans の GEMM（C = alpha*A*B + beta*C）
+  // lhs: (M, K), rhs: (K, N) -> out: (M, N)
+  fn forward(
+    &self,
+    parents: Vec<&Tensor<T>>,
+    events: Vec<&Event>, // 先行依存（同一Queue想定）
+  ) -> Result<(Tensor<T>, Option<ocl::Event>), ocl::Error> {
+    if parents.len() != 2 {
+      return Err(Error::from("GemmOp requires exactly two parent tensors"));
+    }
+    let lhs = parents[0];
+    let rhs = parents[1];
+    if lhs.shape.len() != 2 || rhs.shape.len() != 2 {
+      return Err(Error::from("GemmOp requires both tensors to be 2D"));
+    }
+    if lhs.shape[1] != rhs.shape[0] {
+      return Err(Error::from("Inner dimensions must match for GEMM"));
+    }
+    let m = lhs.shape[0];
+    let k = lhs.shape[1];
+    let n = rhs.shape[1];
+    let (lhs_trans, lhs_ld) = if lhs.shape[1] == lhs.strides[0] {
+      (CLBlastTranspose::No, lhs.shape[1])
+    } else {
+      (CLBlastTranspose::Yes, lhs.shape[0])
+    };
+    let (rhs_trans, rhs_ld) = if rhs.shape[1] == rhs.strides[0] {
+      (CLBlastTranspose::No, rhs.shape[1])
+    } else {
+      (CLBlastTranspose::Yes, rhs.shape[0])
+    };
+    let output_shape = vec![m, n];
+    let output = Tensor::zeros(output_shape.clone());
+    let alpha: f32 = 1.0;
+    let beta: f32 = 0.0;
+    let el = events_to_list(events);
+    let event = sgemm(
+      &lhs.env.proque().queue().clone(),
+      CLBlastLayout::RowMajor,
+      lhs_trans,
+      rhs_trans,
+      m,
+      n,
+      k,
+      alpha,
+      &lhs.buffer,
+      0,
+      lhs_ld,
+      &rhs.buffer,
+      0,
+      rhs_ld,
+      beta,
+      &output.buffer,
+      0,
+      n,
+      &el.iter().map(|e| e.as_core()).cloned().collect::<Vec<_>>(),
+    );
+    match event {
+      Ok(e) => Ok((output, e.map(Event::from))),
+      Err(e) => Err(Error::from(format!("GEMM failed: {:?}", e))),
+    }
   }
 
   fn backward(

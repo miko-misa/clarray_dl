@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::clarray::{
   op::{
-    AbsOp, EwAddOp, EwDivOp, EwMulOp, EwSubOp, ExpOp, Input, LnOp, LogOp, NegOp, NodeOp, PowOp,
-    SqrtOp,
+    AbsOp, CosOp, DotBaseOp, DotOp, EwAddOp, EwDivOp, EwMulOp, EwSubOp, ExpOp, Input, LnOp, LogOp,
+    NegOp, NodeOp, PowOp, SinOp, SqrtOp, TanOp,
   },
   tape::Tape,
   tensor::{Tensor, TensorType},
@@ -261,5 +261,40 @@ where
       name: "log".to_string(),
     });
     Node::push_binary_op(self, base, node_type)
+  }
+
+  pub fn sin(&self) -> Self {
+    let node_type = Rc::new(SinOp {
+      name: "sin".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+
+  pub fn cos(&self) -> Self {
+    let node_type = Rc::new(CosOp {
+      name: "cos".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+
+  pub fn tan(&self) -> Self {
+    let node_type = Rc::new(TanOp {
+      name: "tan".to_string(),
+    });
+    Node::push_unary_op(self, node_type)
+  }
+
+  pub fn dot_base(&self, other: &Node<T>) -> Self {
+    let node_type = Rc::new(DotBaseOp {
+      name: "dot_base".to_string(),
+    });
+    Node::push_binary_op(self, other, node_type)
+  }
+
+  pub fn dot(&self, other: &Node<T>) -> Self {
+    let node_type = Rc::new(DotOp {
+      name: "dot".to_string(),
+    });
+    Node::push_binary_op(self, other, node_type)
   }
 }
